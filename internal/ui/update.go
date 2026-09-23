@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"nftop/internal/models"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func (m *Model) Init() tea.Cmd {
@@ -91,6 +92,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.searchQuery += msg.String()
 				m.applyFiltersAndSort()
 			}
+			switch msg.String() {
+			case "j":
+				m.moveDown()
+			case "k":
+				m.moveUp()
+			}
 			return m, tea.Batch(cmds...)
 		}
 
@@ -110,10 +117,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "+":
 			if m.tickIndex < len(intervals)-1 {
 				m.tickIndex++
+				cmds = append(cmds, m.tickCmd())
 			}
 		case "-":
 			if m.tickIndex > 0 {
 				m.tickIndex--
+				cmds = append(cmds, m.tickCmd())
 			}
 		case "j", "down":
 			if m.showHelp {
@@ -181,8 +190,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewMode = ModeDetailed
 			}
 		case "s":
+			var selKey string
+			if len(m.filtered) > 0 && m.selectedIndex >= 0 && m.selectedIndex < len(m.filtered) {
+				selKey = m.filtered[m.selectedIndex].Port + "/" + m.filtered[m.selectedIndex].Protocol
+			}
 			m.sortMode = (m.sortMode + 1) % 3
 			m.applyFiltersAndSort()
+			if selKey != "" {
+				for i, s := range m.filtered {
+					if s.Port+"/"+s.Protocol == selKey {
+						m.selectedIndex = i
+						m.inspectorOffset = 0
+						break
+					}
+				}
+			}
 		case "/":
 			m.searchActive = true
 		case "esc":
@@ -210,7 +232,7 @@ func (m *Model) moveDown() {
 	if m.activePanel == PanelList {
 		if m.selectedIndex < len(m.filtered)-1 {
 			m.selectedIndex++
-			// Auto scroll list logic handled in view slice mapping
+			m.inspectorOffset = 0
 		}
 	} else {
 		m.inspectorOffset++
@@ -221,6 +243,7 @@ func (m *Model) moveUp() {
 	if m.activePanel == PanelList {
 		if m.selectedIndex > 0 {
 			m.selectedIndex--
+			m.inspectorOffset = 0
 		}
 	} else {
 		if m.inspectorOffset > 0 {
@@ -290,7 +313,7 @@ func generateDiagnostics(s models.Service) string {
 	}
 	b.WriteString("\nNetfilter & Firewall Rules\n──────────────────────────────────────────────────────\n")
 	if s.Status == "EXPOSED" {
-		b.WriteString(fmt.Sprintf("Status:      ▲ EXPOSED (Bypassed via Docker)\n"))
+		b.WriteString("Status:      ▲ EXPOSED (Bypassed via Docker)\n")
 	} else {
 		b.WriteString(fmt.Sprintf("Status:      ● %s\n", s.Status))
 	}

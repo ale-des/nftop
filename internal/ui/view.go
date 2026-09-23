@@ -11,13 +11,13 @@ import (
 var (
 	borderActive   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62"))
 	borderInactive = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240"))
-	
-	colorAllowed   = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	colorExposed   = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	colorSafe      = lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
-	
-	highlight      = lipgloss.NewStyle().Background(lipgloss.Color("236"))
-	bold           = lipgloss.NewStyle().Bold(true)
+
+	colorAllowed = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	colorExposed = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	colorSafe    = lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+
+	highlight = lipgloss.NewStyle().Background(lipgloss.Color("236"))
+	bold      = lipgloss.NewStyle().Bold(true)
 )
 
 func (m *Model) View() string {
@@ -43,7 +43,7 @@ func (m *Model) View() string {
 	}
 
 	leftPanel := m.renderLeftPanel(listWidth, availableHeight)
-	
+
 	if isDualPane {
 		rightPanel := m.renderRightPanel(m.width-listWidth, availableHeight)
 		viewStr = lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
@@ -83,7 +83,7 @@ List Controls:
   e          : Toggle Exposed-only filter (▲ EXPOSED)`
 
 		helpLines := strings.Split(helpText, "\n")
-		
+
 		// UC-02: Implement viewport slicing for Help modal
 		if m.helpOffset < 0 {
 			m.helpOffset = 0
@@ -134,7 +134,7 @@ func (m *Model) renderLeftPanel(width, height int) string {
 
 	if len(m.filtered) == 0 {
 		empty := lipgloss.Place(width-4, height-4, lipgloss.Center, lipgloss.Center, fmt.Sprintf("No matching services\nfound for \"%s\"\n\nPress [Esc] to clear", m.searchQuery))
-		return style.Render(lipgloss.JoinVertical(lipgloss.Left, " " + title, empty))
+		return style.Render(lipgloss.JoinVertical(lipgloss.Left, " "+title, empty))
 	}
 
 	itemHeight := 4
@@ -143,7 +143,7 @@ func (m *Model) renderLeftPanel(width, height int) string {
 	}
 	maxItems := (height - 4) / itemHeight
 	if maxItems < 1 {
-	    maxItems = 1
+		maxItems = 1
 	}
 
 	if m.selectedIndex < m.listOffset {
@@ -153,6 +153,11 @@ func (m *Model) renderLeftPanel(width, height int) string {
 	}
 
 	var content string
+	innerWidth := width - 4
+	if innerWidth < 10 {
+		innerWidth = 10
+	}
+
 	for i := m.listOffset; i < len(m.filtered) && i < m.listOffset+maxItems; i++ {
 		s := m.filtered[i]
 		cursor := " "
@@ -174,23 +179,52 @@ func (m *Model) renderLeftPanel(width, height int) string {
 			trafficStr = fmt.Sprintf("▲ %s ▼ %s", formatBytes(s.TrafficInfo.Ingress), formatBytes(s.TrafficInfo.Egress))
 		}
 
-		var item string
+		ipVer := ipVersion(s.BindAddr)
+
+		var lines []string
 		if m.viewMode == ModeDetailed {
-			item = fmt.Sprintf("%s● [%s/%s] %s\n   ├─ Process:   %s (pid %s)\n   ├─ Exposure:  %s:%s\n   └─ Traffic:   %s  %s\n",
-				cursor, s.Port, s.Protocol, bold.Render(s.ProcessName), s.ProcessName, s.PID, s.BindAddr, s.Port, trafficStr, statusColor.Render(statusText))
+			lines = []string{
+				fmt.Sprintf("%s● [%s/%s] (%s) %s", cursor, s.Port, s.Protocol, ipVer, bold.Render(s.ProcessName)),
+				fmt.Sprintf("   ├─ Process:   %s (pid %s)", s.ProcessName, s.PID),
+				fmt.Sprintf("   ├─ Exposure:  %s:%s (%s)", s.BindAddr, s.Port, ipVer),
+				fmt.Sprintf("   └─ Traffic:   %s  %s", trafficStr, statusColor.Render(statusText)),
+			}
 		} else {
-			item = fmt.Sprintf("%s● [%s/%s] %s\n   %s  %s\n",
-				cursor, s.Port, s.Protocol, bold.Render(s.ProcessName), trafficStr, statusColor.Render(statusText))
+			lines = []string{
+				fmt.Sprintf("%s● [%s/%s] (%s) %s", cursor, s.Port, s.Protocol, ipVer, bold.Render(s.ProcessName)),
+				fmt.Sprintf("   %s  %s", trafficStr, statusColor.Render(statusText)),
+			}
 		}
 
-		if i == m.selectedIndex && m.activePanel == PanelList {
-			item = highlight.Render(item)
+		for j, l := range lines {
+			padded := padLine(l, innerWidth)
+			if i == m.selectedIndex && m.activePanel == PanelList {
+				lines[j] = highlight.Render(padded)
+			} else {
+				lines[j] = padded
+			}
 		}
-		content += item
+
+		content += strings.Join(lines, "\n") + "\n"
 	}
 
 	content = strings.TrimSuffix(content, "\n")
-	return style.Render(lipgloss.JoinVertical(lipgloss.Left, " " + title, content))
+	return style.Render(lipgloss.JoinVertical(lipgloss.Left, " "+title, content))
+}
+
+func ipVersion(ip string) string {
+	if strings.Contains(ip, ":") {
+		return "v6"
+	}
+	return "v4"
+}
+
+func padLine(line string, width int) string {
+	w := lipgloss.Width(line)
+	if w < width {
+		return line + strings.Repeat(" ", width-w)
+	}
+	return line
 }
 
 func (m *Model) renderRightPanel(width, height int) string {
@@ -209,7 +243,7 @@ func (m *Model) renderRightPanel(width, height int) string {
 	rawText := generateDiagnostics(s)
 
 	lines := strings.Split(rawText, "\n")
-	
+
 	if m.inspectorOffset < 0 {
 		m.inspectorOffset = 0
 	}
@@ -227,7 +261,7 @@ func (m *Model) renderRightPanel(width, height int) string {
 	}
 
 	visibleText := strings.Join(lines[m.inspectorOffset:endIdx], "\n")
-	return style.Render(lipgloss.JoinVertical(lipgloss.Left, " " + title, visibleText))
+	return style.Render(lipgloss.JoinVertical(lipgloss.Left, " "+title, visibleText))
 }
 
 func (m *Model) renderFooter() string {
@@ -239,12 +273,12 @@ func (m *Model) renderFooter() string {
 	if m.exposedOnly {
 		expStatus = "ON"
 	}
-	
+
 	copyToast := ""
 	if m.showToast {
 		copyToast = " │ [Copied to clipboard]"
 	}
-	
+
 	footer := fmt.Sprintf(" Tick: %s │ Filters: [Docker: %s] [Exposed: %s]%s", intervals[m.tickIndex].String(), dockStatus, expStatus, copyToast)
 	return lipgloss.NewStyle().Background(lipgloss.Color("235")).Foreground(lipgloss.Color("250")).Width(m.width).Render(footer)
 }

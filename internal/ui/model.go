@@ -37,39 +37,39 @@ var intervals = []time.Duration{
 }
 
 type Model struct {
-	isRoot          bool
-	width           int
-	height          int
-	services        []models.Service
-	filtered        []models.Service
-	scanner         *scanner.Scanner
-	
+	isRoot   bool
+	width    int
+	height   int
+	services []models.Service
+	filtered []models.Service
+	scanner  *scanner.Scanner
+
 	listOffset      int
 	inspectorOffset int
 	helpOffset      int
 	selectedIndex   int
 
-	activePanel     Panel
-	viewMode        ViewMode
-	sortMode        SortMode
+	activePanel Panel
+	viewMode    ViewMode
+	sortMode    SortMode
 
-	searchQuery     string
-	searchActive    bool
-	dockerOnly      bool
-	exposedOnly     bool
+	searchQuery  string
+	searchActive bool
+	dockerOnly   bool
+	exposedOnly  bool
 
-	tickIndex       int
-	showHelp        bool
-	showToast       bool
+	tickIndex int
+	showHelp  bool
+	showToast bool
 }
 
 func NewModel(isRoot bool) *Model {
 	return &Model{
-		isRoot:        isRoot,
-		scanner:       scanner.New(),
-		activePanel:   PanelList,
-		viewMode:      ModeDetailed,
-		sortMode:      SortTraffic,
-		tickIndex:     0,
+		isRoot:      isRoot,
+		scanner:     scanner.New(),
+		activePanel: PanelList,
+		viewMode:    ModeDetailed,
+		sortMode:    SortTraffic,
+		tickIndex:   0,
 	}
 }

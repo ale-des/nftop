@@ -77,13 +77,13 @@ func (s *Scanner) Scan() models.ScanResultMsg {
 			isDocker = true
 		}
 
-		ruleStr, chain, pkts, ruleBytes, hasRule := matchRule(ruleset, port, intIP)
+		ruleStr, chain, pkts, ruleBytes, hasRule, hasCounter := matchRule(ruleset, port, intIP)
 		status := determineStatus(ip, hasRule)
 
 		// Traffic Calculation
 		key := fmt.Sprintf("%s:%s", ip, port)
 		var ingress uint64
-		isNA := !hasRule || ruleBytes == 0
+		isNA := !hasRule || !hasCounter
 
 		if !isNA {
 			prev := s.prevBytes[key]
@@ -191,11 +191,13 @@ func getDockerInfo() (map[string]string, map[string]string) {
 	return ips, names
 }
 
-func matchRule(ruleset map[string]interface{}, port, ip string) (string, string, uint64, uint64, bool) {
+func matchRule(ruleset map[string]interface{}, port, ip string) (string, string, uint64, uint64, bool, bool) {
 	nftables, ok := ruleset["nftables"].([]interface{})
 	if !ok {
-		return "", "", 0, 0, false
+		return "", "", 0, 0, false, false
 	}
+
+	targetPort, _ := strconv.Atoi(port)
 
 	for _, item := range nftables {
 		itemMap, ok := item.(map[string]interface{})
@@ -207,22 +209,50 @@ func matchRule(ruleset map[string]interface{}, port, ip string) (string, string,
 			continue
 		}
 
+		exprs, ok := rule["expr"].([]interface{})
+		if !ok {
+			continue
+		}
+
+		matchedPort := false
+		matchedIP := false
+		var pkts, bts uint64
+		hasCounter := false
+		var chain string
+		if c, ok := rule["chain"].(string); ok {
+			chain = c
+		}
+
 		ruleBytesJSON, _ := json.Marshal(rule)
 		ruleStr := string(ruleBytesJSON)
 
-		// Basic matching for the port or internal IP in the JSON rule representation
-		if strings.Contains(ruleStr, fmt.Sprintf(":%s", port)) || (ip != "" && strings.Contains(ruleStr, ip)) || strings.Contains(ruleStr, port) {
-			chain, _ := rule["chain"].(string)
-			var pkts, bts uint64
-			pktRe := regexp.MustCompile(`"packets":\s*(\d+)`)
-			bytesRe := regexp.MustCompile(`"bytes":\s*(\d+)`)
-			if m := pktRe.FindStringSubmatch(ruleStr); len(m) > 1 {
-				pkts, _ = strconv.ParseUint(m[1], 10, 64)
+		for _, exprItem := range exprs {
+			exprMap, ok := exprItem.(map[string]interface{})
+			if !ok {
+				continue
 			}
-			if m := bytesRe.FindStringSubmatch(ruleStr); len(m) > 1 {
-				bts, _ = strconv.ParseUint(m[1], 10, 64)
+			if match, ok := exprMap["match"].(map[string]interface{}); ok {
+				matchJSON, _ := json.Marshal(match)
+				matchStr := string(matchJSON)
+				if strings.Contains(matchStr, fmt.Sprintf(`"right":%d`, targetPort)) || strings.Contains(matchStr, fmt.Sprintf(`"right": %d`, targetPort)) || strings.Contains(matchStr, fmt.Sprintf(`"dport":%d`, targetPort)) || strings.Contains(matchStr, port) {
+					matchedPort = true
+				}
+				if ip != "" && strings.Contains(matchStr, ip) {
+					matchedIP = true
+				}
 			}
-			// Constructing a simplified representation since parsing arbitrary nft expr is complex
+			if counter, ok := exprMap["counter"].(map[string]interface{}); ok {
+				hasCounter = true
+				if p, ok := counter["packets"].(float64); ok {
+					pkts = uint64(p)
+				}
+				if b, ok := counter["bytes"].(float64); ok {
+					bts = uint64(b)
+				}
+			}
+		}
+
+		if matchedPort || (ip != "" && matchedIP) || strings.Contains(ruleStr, fmt.Sprintf("dport %s", port)) || strings.Contains(ruleStr, fmt.Sprintf(":%s", port)) {
 			exprRep := fmt.Sprintf("ip daddr * tcp dport %s accept", port)
 			if ip != "" {
 				exprRep = fmt.Sprintf("ip daddr %s tcp dport %s accept", ip, port)
@@ -232,10 +262,10 @@ func matchRule(ruleset map[string]interface{}, port, ip string) (string, string,
 				handle = fmt.Sprintf("#%.0f", h)
 			}
 			chainMeta := fmt.Sprintf("%s (Handle: %s)", chain, handle)
-			return exprRep, chainMeta, pkts, bts, true
+			return exprRep, chainMeta, pkts, bts, true, hasCounter
 		}
 	}
-	return "", "", 0, 0, false
+	return "", "", 0, 0, false, false
 }
 
 func determineStatus(bindAddr string, hasRule bool) string {
