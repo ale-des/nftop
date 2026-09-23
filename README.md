@@ -40,6 +40,16 @@ On modern Linux infrastructure, container runtimes (such as Docker) often manipu
 * **Remote Clipboard Support:** diagnostic summaries copy directly to your local workstation clipboard across SSH sessions using ANSI OSC 52 sequences (`y`).
 * **Resource-Efficient Architecture:** sub-15 MB RAM footprint, minimal CPU overhead (~1%), single static binary deployment, native ARM64 & AMD64 support.
 * 
+
+## Installation (.deb packages)
+Download and install the package for your architecture from [GitHub Releases](https://github.com/ale-des/nftop/releases/latest):
+
+### x86_64 / amd64 (Intel & AMD)
+```bash
+wget [https://github.com/ale-des/nftop/releases/download/v2.0.0/nftop_2.0.0_amd64.deb](https://github.com/ale-des/nftop/releases/download/v2.0.0/nftop_2.0.0_amd64.deb)
+sudo apt install ./nftop_2.0.0_amd64.deb
+```
+
 #### SEO Keywords & Metadata
 
 `Linux network monitor`, `nftables firewall TUI`, `Docker port exposure audit`, `terminal UI Go`, `open ports scanner Linux`, `socket telemetry tool`, `DevOps terminal tools`, `sysadmin CLI utility`, `Netfilter monitor`, `network security terminal`, `Charmbracelet Bubbletea`, `lightweight server monitoring`, `ss port inspection`.
