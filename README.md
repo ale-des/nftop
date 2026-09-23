@@ -45,9 +45,10 @@ On modern Linux infrastructure, container runtimes (such as Docker) often manipu
 Download and install the package for your architecture from [GitHub Releases](https://github.com/ale-des/nftop/releases/latest):
 
 ### x86_64 / amd64 (Intel & AMD)
-```bash
-wget [https://github.com/ale-des/nftop/releases/download/v2.0.0/nftop_2.0.0_amd64.deb](https://github.com/ale-des/nftop/releases/download/v2.0.0/nftop_2.0.0_amd64.deb)
+```bash $
+wget https://github.com/ale-des/nftop/releases/download/v2.0.0/nftop_2.0.0_amd64.deb
 sudo apt install ./nftop_2.0.0_amd64.deb
+sudo nftop
 ```
 
 #### SEO Keywords & Metadata
